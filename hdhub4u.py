@@ -1,0 +1,101 @@
+import requests
+from bs4 import BeautifulSoup
+import time
+import os
+from config import SITE_CONFIG, logger
+
+def get_movie_titles_and_links(movie_name=None, max_pages=5):
+    search_query = f"{movie_name.replace(' ', '+').lower()}" if movie_name else ""
+    base_url = f"https://{SITE_CONFIG['hdhub4u']}/?s={search_query}" if movie_name else f"https://{SITE_CONFIG['hdhub4u']}/"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive'
+    }
+    
+    page = 1
+    movie_count = 0
+    all_titles = []
+    movie_links = []
+    session = requests.Session()
+
+    while page <= max_pages:
+        url = base_url if page == 1 else f"https://{SITE_CONFIG['hdhub4u']}/page/{page}/{'?s=' + search_query if movie_name else ''}"
+        logger.debug(f"Fetching page {page}: {url}")
+
+        try:
+            response = session.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            logger.debug(f"Status code: {response.status_code}")
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            movie_elements = soup.select('ul.recent-movies li')
+            logger.debug(f"Found {len(movie_elements)} movie elements")
+
+            if not movie_elements:
+                logger.warning("No movie elements found on this page.")
+                with open(f"debug_page_{page}.html", "w", encoding="utf-8") as f:
+                    f.write(response.text)
+                if movie_name:
+                    break
+                page += 1
+                continue
+
+            for element in movie_elements:
+                title_tag = element.select_one('figcaption p')
+                link_tag = element.select_one('figure a[href]')
+                if title_tag and link_tag:
+                    title = title_tag.text.strip()
+                    link = link_tag['href']
+                    if title and not any(exclude in title.lower() for exclude in ['©', 'all rights reserved']):
+                        movie_count += 1
+                        all_titles.append(f"{movie_count}. {title}")
+                        movie_links.append(link)
+
+            if movie_name:
+                pagination = soup.find('div', class_='pagination-wrap')
+                if not pagination or not pagination.find('a', class_='next page-numbers'):
+                    break
+
+            page += 1
+            time.sleep(1)
+
+        except requests.RequestException as e:
+            logger.error(f"Error fetching page {page}: {str(e)}")
+            break
+
+    return all_titles, movie_links
+
+def get_download_links(movie_url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive'
+    }
+    
+    try:
+        logger.debug(f"Fetching movie page: {movie_url}")
+        response = requests.get(movie_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        logger.debug(f"Status code: {response.status_code}")
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        download_links = []
+        for tag in soup.select('h3 a[href], h4 a[href]'):
+            link_text = tag.find('em').text.strip() if tag.find('em') else tag.text.strip()
+            link_url = tag['href']
+            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['trailer']):
+                download_links.append(f"{link_text}: {link_url}")
+
+        if not download_links:
+            logger.warning("No download links found.")
+            with open("debug_movie_page.html", "w", encoding="utf-8") as f:
+                f.write(response.text)
+
+        return download_links
+
+    except requests.RequestException as e:
+        logger.error(f"Error fetching page: {str(e)}")
+        return []
