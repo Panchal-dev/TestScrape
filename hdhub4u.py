@@ -10,8 +10,8 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Connection': 'keep-alive'
+        'Accept': 'en-US,en;q=0.0',
+        'Connection': 'keep-alive',
     }
     
     page = 1
@@ -71,8 +71,8 @@ def get_download_links(movie_url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Connection': 'keep-alive'
+        'Accept': 'en-US,en;q=0.0',
+        'Connection': 'keep-alive',
     }
     
     try:
@@ -86,11 +86,11 @@ def get_download_links(movie_url):
         for tag in soup.select('h3 a[href], h4 a[href]'):
             link_text = tag.find('em').text.strip() if tag.find('em') else tag.text.strip()
             link_url = tag['href']
-            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['trailer']):
+            if link_text and link_url and not any(exclude in link_text.lower() in ['trailer', 'download']):
                 download_links.append(f"{link_text}: {link_url}")
 
         if not download_links:
-            logger.warning("No download links found.")
+            logger.warning("No links found.")
             with open("debug_movie_page.html", "w", encoding="utf-8") as f:
                 f.write(response.text)
 
