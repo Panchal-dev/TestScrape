@@ -42,7 +42,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                     f.write(response.text)
 
         except Exception as e:
-            logger.error(f"Error fetching featured movies: {str(e)}")
+            logger.error(f"Error fetching featured movies: {e}")
 
         for page in range(1, max_pages + 1):
             url = f"https://{SITE_CONFIG['hdmovie2']}/movies/page/{page}/" if page > 1 else f"https://{SITE_CONFIG['hdmovie2']}/movies/"
@@ -70,10 +70,10 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                     with open(f"debug_page_{page}.html", "w", encoding="utf-8") as f:
                         f.write(response.text)
 
-                time.sleep(1)
+                time.sleep(3)
 
             except Exception as e:
-                logger.error(f"Error fetching page {page}: {str(e)}")
+                logger.error(f"Error fetching page {page}: {e}")
                 break
 
         all_titles = featured_titles[:15] + recently_added_titles
@@ -117,10 +117,10 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                     break
 
                 page += 1
-                time.sleep(1)
+                time.sleep(3)
 
             except Exception as e:
-                logger.error(f"Error fetching search page {page}: {str(e)}")
+                logger.error(f"Error fetching search page {page}: {e}")
                 break
 
     return all_titles, movie_links
@@ -164,5 +164,5 @@ def get_download_links(movie_url):
         return download_links
 
     except Exception as e:
-        logger.error(f"Error fetching page: {str(e)}")
+        logger.error(f"Error fetching page: {e}")
         return []

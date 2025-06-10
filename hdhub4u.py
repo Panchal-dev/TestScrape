@@ -59,10 +59,10 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                     break
 
             page += 1
-            time.sleep(1)
+            time.sleep(3)
 
         except requests.RequestException as e:
-            logger.error(f"Error fetching page {page}: {str(e)}")
+            logger.error(f"Error fetching page {page}: {e}")
             break
 
     return all_titles, movie_links
@@ -97,5 +97,5 @@ def get_download_links(movie_url):
         return download_links
 
     except requests.RequestException as e:
-        logger.error(f"Error fetching page: {str(e)}")
+        logger.error(f"Error fetching page: {e}")
         return []
