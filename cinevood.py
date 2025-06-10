@@ -53,10 +53,10 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                 if not next_page:
                     break
 
-            time.sleep(1)
+            time.sleep(3)
 
         except Exception as e:
-            logger.error(f"Error fetching page {page}: {str(e)}")
+            logger.error(f"Error fetching page {page}: {e}")
             break
 
     return all_titles, movie_links
@@ -70,9 +70,10 @@ def get_download_links(movie_url):
         response.raise_for_status()
         logger.debug(f"Status code: {response.status_code}")
 
-        soup = BeautifulSoup(response.text(), 'html.parser')
+        soup = BeautifulSoup(response.text, 'html.parser')
         download_links = []
 
+        # Try primary selector: div.download-btns
         download_sections = soup.select('div.download-btns')
         if download_sections:
             logger.debug("Found download sections with 'div.download-btns' selector.")
@@ -88,6 +89,7 @@ def get_download_links(movie_url):
                         link_url = link_tag['href']
                         download_links.append(f"{description} [{link_text}]: {link_url}")
 
+        # Try alternative structure: center > h6 + a.maxbutton-8 or a.maxbutton-9
         if not download_links:
             logger.debug("Trying new structure: center > h6 + a.maxbutton")
             center_tags = soup.find_all('center')
@@ -100,7 +102,7 @@ def get_download_links(movie_url):
                             continue
                         current = h6
                         while current:
-                            current = current.next_sibling
+                            current = current.next_sibling()
                             if current and hasattr(current, 'name') and current.name == 'a' and any(cls in current.get('class', []) for cls in ['maxbutton-8', 'maxbutton-9']):
                                 link_text = current.find('span', class_='mb-text').text.strip() if current.find('span', class_='mb-text') else 'Download'
                                 link_url = current['href']
@@ -111,9 +113,10 @@ def get_download_links(movie_url):
                                     link_text = link_tag.find('span', class_='mb-text').text.strip() if link_tag.find('span', class_='mb-text') else 'Download'
                                     link_url = link_tag['href']
                                     download_links.append(f"{description} [{link_text}]: {link_url}")
-                            if current and hasattr(current, 'name') and current.name == 'h6':
-                                break
+                                if current and hasattr(current, 'name') and current.name == 'h6':
+                                    break
 
+        # Fallback: search for h6 tags globally
         if not download_links:
             logger.debug("Trying fallback: searching for h6 tags")
             h6_tags = soup.find_all('h6')
@@ -145,5 +148,5 @@ def get_download_links(movie_url):
         return download_links
 
     except Exception as e:
-        logger.error(f"Error fetching page: {str(e)}")
+        logger.error(f"Error fetching page: {e}")
         return []
