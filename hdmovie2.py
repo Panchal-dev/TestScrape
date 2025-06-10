@@ -25,7 +25,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
 
             soup = BeautifulSoup(response.text, 'html.parser')
             featured_elements = soup.select('div.items.featured article.item.movies')
-            logger.debug(f"Found {len(featured_elements)} featured elements")
+            logger.debug(f"Found {len(featured_elements)} featured movie elements with 'div.data.dfeatur h3 a' selector.")
 
             for element in featured_elements:
                 title_tag = element.select_one('div.data.dfeatur h3 a')
@@ -38,7 +38,8 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                         featured_links.append(link)
 
             if not featured_elements:
-                with open("debug_movie_featured.html", "w", encoding="utf-8") as f:
+                logger.warning("No featured movies found.")
+                with open("debug_featured.html", "w", encoding="utf-8") as f:
                     f.write(response.text)
 
         except Exception as e:
@@ -54,7 +55,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 recent_elements = soup.select('div#archive-content article.item.movies')
-                logger.debug(f"Found {len(recent_elements)} recently added elements")
+                logger.debug(f"Found {len(recent_elements)} recently added movie elements with 'div.data h3 a' selector.")
 
                 for element in recent_elements:
                     title_tag = element.select_one('div.data h3 a')
@@ -67,6 +68,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                             recently_added_links.append(link)
 
                 if not recent_elements:
+                    logger.warning("No recently added movies found on this page.")
                     with open(f"debug_page_{page}.html", "w", encoding="utf-8") as f:
                         f.write(response.text)
 
@@ -81,23 +83,24 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
 
     else:
         search_query = f"{movie_name.replace(' ', '+').lower()}"
-        base_url = f"https://www.{SITE_CONFIG['hdmovie2']}/?s={search_query}"
+        base_url = f"https://{SITE_CONFIG['hdmovie2']}/?s={search_query}"
         page = 1
 
         while True:
-            url = base_url if page == 1 else f"https://www.{SITE_CONFIG['hdmovie2']}/page/{page}/?s={search_query}"
-            print(f"Fetching search page {page}: {url}")
+            url = base_url if page == 1 else f"https://{SITE_CONFIG['hdmovie2']}/page/{page}/?s={search_query}"
+            logger.debug(f"Fetching search page {page}: {url}")
             try:
                 response = scraper.get(url, timeout=10)
                 response.raise_for_status()
-                logger.debug(f"Found code: {response.status_code}")
+                logger.debug(f"Status code: {response.status_code}")
 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 movie_elements = soup.select('div.result-item')
-                logger.debug(f"Found {len(movie_elements)} movie elements")
+                logger.debug(f"Found {len(movie_elements)} movie elements with 'div.details div.title a' selector.")
 
                 if not movie_elements:
-                    with open(f"debug_movie_{page}.html", "w", encoding="utf-8") as f:
+                    logger.warning("No movie elements found on this page.")
+                    with open(f"debug_page_{page}.html", "w", encoding="utf-8") as f:
                         f.write(response.text)
                     break
 
@@ -114,6 +117,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                 pagination = soup.find('div', class_='pagination')
                 next_page = pagination.find('a', class_='inactive') if pagination else None
                 if not next_page:
+                    logger.debug("No next page found.")
                     break
 
                 page += 1
@@ -135,9 +139,9 @@ def get_download_links(movie_url):
         logger.debug(f"Status code: {response.status_code}")
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        download_link_tags = soup.select('div.wp-content p a[href*="http://dwo.hair"]')
+        download_link_tags = soup.select('div.wp-content p a[href*="dwo.hair"]')
         if not download_link_tags:
-            logger.warning("No download page link found.")
+            logger.warning("No download page link found on this page.")
             with open("debug_movie_page.html", "w", encoding="utf-8") as f:
                 f.write(response.text)
             return []
@@ -153,11 +157,11 @@ def get_download_links(movie_url):
         for tag in soup.select('div.download-links-section p a[href]'):
             link_text = tag.text.strip()
             link_url = tag['href']
-            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['download', 'trailer']):
+            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['watch online', 'trailer']):
                 download_links.append(f"{link_text}: {link_url}")
 
         if not download_links:
-            logger.warning("No download links found.")
+            logger.warning("No download links found on this page.")
             with open("debug_download_page.html", "w", encoding="utf-8") as f:
                 f.write(response.text)
 

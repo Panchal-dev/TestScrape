@@ -25,16 +25,20 @@ MOVIE_NAME, SITE_SELECTION, MOVIE_SELECTION, DOMAIN_UPDATE, DOMAIN_INPUT = range
 # Initialize sessions
 ACTIVE_SESSIONS = {}
 
+def clear_session(user_id, context: CallbackContext):
+    """Clear active session for a user."""
+    if user_id in ACTIVE_SESSIONS:
+        del ACTIVE_SESSIONS[user_id]
+        logger.debug(f"Cleared session for user {user_id}")
+    context.user_data.clear()
+
 def start(update: Update, context: CallbackContext) -> int:
     user_id = update.effective_user.id
     if user_id not in ALLOWED_IDS:
-        update.message.reply_text("Invalid user. Contact admin.")
+        update.message.reply_text("Unauthorized access. Contact admin.")
         return ConversationHandler.END
 
-    if user_id in ACTIVE_SESSIONS:
-        update.message.reply_text("Session active. Use /cancel to end.")
-        return ConversationHandler.END
-
+    clear_session(user_id, context)
     ACTIVE_SESSIONS[user_id] = {"start_time": datetime.now()}
     update.message.reply_text("Enter movie name to search:")
     return MOVIE_NAME
@@ -42,7 +46,7 @@ def start(update: Update, context: CallbackContext) -> int:
 def movie_name(update: Update, context: CallbackContext) -> int:
     user_id = update.effective_user.id
     if user_id not in ACTIVE_SESSIONS:
-        update.message.reply_text("Session expired. Use /start_movie to retry.")
+        update.message.reply_text("Session expired. Use /start_movie to begin.")
         return ConversationHandler.END
 
     movie_name = update.message.text.strip()
@@ -51,38 +55,34 @@ def movie_name(update: Update, context: CallbackContext) -> int:
         return MOVIE_NAME
 
     context.user_data["movie_name"] = movie_name
+    context.user_data["mode"] = "search"
     keyboard = [
         [InlineKeyboardButton("Cinevood", callback_data="cinevood")],
         [InlineKeyboardButton("HDHub4u", callback_data="hdhub4u")],
-        [InlineKeyboardButton("HDMovie2u", callback_data="movie2")],
+        [InlineKeyboardButton("HDMovie2", callback_data="hdmovie2")],
         [InlineKeyboardButton("Cancel", callback_data="cancel")],
     ]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(f"Select site for '{movie_name}':", reply_markup=reply_markup)
+    update.message.reply_text(f"Select a site to search for '{movie_name}':", reply_markup=reply_markup)
     return SITE_SELECTION
 
 def latest_movies(update: Update, context: CallbackContext) -> int:
     user_id = update.effective_user.id
     if user_id not in ALLOWED_IDS:
-        update.message.reply_text("Invalid user. Contact admin.")
+        update.message.reply_text("Unauthorized access. Contact admin.")
         return ConversationHandler.END
 
-    if user_id in ACTIVE_SESSIONS:
-        update.message.reply_text("Session active. Use /cancel to end.")
-        return ConversationHandler.END
-
+    clear_session(user_id, context)
     ACTIVE_SESSIONS[user_id] = {"start_time": datetime.now()}
     context.user_data["mode"] = "latest"
     keyboard = [
         [InlineKeyboardButton("Cinevood", callback_data="cinevood")],
         [InlineKeyboardButton("HDHub4u", callback_data="hdhub4u")],
-        [InlineKeyboardButton("HDMovie2u", callback_data="movie2")],
+        [InlineKeyboardButton("HDMovie2", callback_data="hdmovie2")],
         [InlineKeyboardButton("Cancel", callback_data="cancel")],
     ]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Select site for latest movies:", reply_markup=reply_markup)
+    update.message.reply_text("Select a site for latest movies:", reply_markup=reply_markup)
     return SITE_SELECTION
 
 def site_selection(update: Update, context: CallbackContext) -> int:
@@ -91,12 +91,12 @@ def site_selection(update: Update, context: CallbackContext) -> int:
     user_id = query.from_user.id
 
     if user_id not in ACTIVE_SESSIONS:
-        query.message.reply_text("Session expired. Use /start_movie to retry.")
+        query.message.reply_text("Session expired. Use /start_movie to begin.")
         return ConversationHandler.END
 
     if query.data == "cancel":
-        del ACTIVE_SESSIONS[user_id]
-        query.message.edit_text("OK")
+        clear_session(user_id, context)
+        query.message.edit_text("Operation cancelled.")
         return ConversationHandler.END
 
     context.user_data["site"] = query.data
@@ -110,6 +110,7 @@ def fetch_movies(update: Update, context: CallbackContext, page: int):
     movie_name = context.user_data.get("movie_name", None) if mode == "search" else None
 
     try:
+        logger.debug(f"Fetching movies: site={site}, mode={mode}, movie_name={movie_name}, page={page}")
         if site == "cinevood":
             titles, links = cinevood_titles(movie_name, max_pages=1)
         elif site == "hdhub4u":
@@ -120,15 +121,15 @@ def fetch_movies(update: Update, context: CallbackContext, page: int):
         if not titles:
             query = update.callback_query
             query.message.edit_text("No movies found. Try another site or name.")
-            del ACTIVE_SESSIONS[user_id]
+            clear_session(user_id, context)
             return ConversationHandler.END
 
         context.user_data["titles"] = titles
         context.user_data["links"] = links
         context.user_data["page"] = page
 
-        start_idx = (page - 1) * 5
-        end_idx = start_idx + 5
+        start_idx = (page - 1) * 10  # Changed to 10 for 10-button gap
+        end_idx = start_idx + 10
         page_titles = titles[start_idx:end_idx]
 
         keyboard = [[InlineKeyboardButton(title, callback_data=str(i + start_idx + 1))] for i, title in enumerate(page_titles)]
@@ -141,7 +142,7 @@ def fetch_movies(update: Update, context: CallbackContext, page: int):
         keyboard.append(nav_buttons)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        text = f"{'Latest' if mode == 'latest' else 'Search'} Movies (Page {page}):\n\n" + "\n".join(page_titles)
+        text = f"{'Search' if mode == 'search' else 'Latest'} Movies (Page {page}):\n\n" + "\n".join(page_titles)
         query = update.callback_query
         query.message.edit_text(text, reply_markup=reply_markup)
 
@@ -149,7 +150,7 @@ def fetch_movies(update: Update, context: CallbackContext, page: int):
         logger.error(f"Error fetching movies: {e}")
         query = update.callback_query
         query.message.edit_text("Error fetching movies. Try again later.")
-        del ACTIVE_SESSIONS[user_id]
+        clear_session(user_id, context)
         return ConversationHandler.END
 
 def movie_selection(update: Update, context: CallbackContext) -> int:
@@ -158,10 +159,14 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
     user_id = query.from_user.id
 
     if user_id not in ACTIVE_SESSIONS:
-        query.message.reply_text("Session expired. Use /start_movie to retry.")
+        query.message.reply_text("Session expired. Use /start_movie to begin.")
         return ConversationHandler.END
 
-    if query.data == "next":
+    if query.data == "cancel":
+        clear_session(user_id, context)
+        query.message.edit_text("Operation cancelled.")
+        return ConversationHandler.END
+    elif query.data == "next":
         page = context.user_data["page"] + 1
         fetch_movies(update, context, page)
         return MOVIE_SELECTION
@@ -171,30 +176,20 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
         return MOVIE_SELECTION
     elif query.data == "back_to_sites":
         mode = context.user_data.get("mode", "search")
-        if mode == "search":
-            keyboard = [
-                [InlineKeyboardButton("Cinevood", callback_data="cinevood")],
-                [InlineKeyboardButton("HDHub4u", callback_data="hdhub4u")],
-                [InlineKeyboardButton("HDMovie2u", callback_data="movie2")],
-                [InlineKeyboardButton("Cancel", callback_data="cancel")],
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            query.message.edit_text(f"Select site to search for '{context.user_data['movie_name']}':", reply_markup=reply_markup)
-            return SITE_SELECTION
-        else:
-            keyboard = [
-                [InlineKeyboardButton("Cinevood", callback_data="cinevood")],
-                [InlineKeyboardButton("HDHub4u", callback_data="hdhub4u")],
-                [InlineKeyboardButton("HDMovie2u", callback_data="movie2")],
-                [InlineKeyboardButton("Cancel", callback_data="cancel")],
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            query.message.edit_text("Select site for latest movies:", reply_markup=reply_markup)
-            return SITE_SELECTION
-    elif query.data == "cancel":
-        del ACTIVE_SESSIONS[user_id]
-        query.message.edit_text("OK")
-        return ConversationHandler.END
+        keyboard = [
+            [InlineKeyboardButton("Cinevood", callback_data="cinevood")],
+            [InlineKeyboardButton("HDHub4u", callback_data="hdhub4u")],
+            [InlineKeyboardButton("HDMovie2", callback_data="hdmovie2")],
+            [InlineKeyboardButton("Cancel", callback_data="cancel")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        text = f"Select a site to search for '{context.user_data['movie_name']}'" if mode == "search" else "Select a site for latest movies:"
+        query.message.edit_text(text, reply_markup=reply_markup)
+        return SITE_SELECTION
+    elif query.data == "back_to_list":
+        page = context.user_data.get("page", 1)
+        fetch_movies(update, context, page)
+        return MOVIE_SELECTION
 
     try:
         selection = int(query.data) - 1
@@ -206,6 +201,7 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
         site = context.user_data["site"]
 
         try:
+            logger.debug(f"Fetching download links for {movie_url} from {site}")
             if site == "cinevood":
                 download_links = cinevood_links(movie_url)
             elif site == "hdhub4u":
@@ -220,37 +216,34 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
 
             keyboard = [
                 [InlineKeyboardButton("Back to Movie List", callback_data="back_to_list")],
-                [InlineKeyboardButton("Back to Sites", callback_data="back_to_sites")]
+                [InlineKeyboardButton("Back to Sites", callback_data="back_to_sites")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             query.message.edit_text(text, reply_markup=reply_markup)
 
         except Exception as e:
-            logger.error(f"Error fetching download links: {e}")
+            logger.error(f"Error fetching download links for {movie_url}: {e}")
             query.message.edit_text("Error fetching download links. Try again later.")
-            del ACTIVE_SESSIONS[user_id]
-            return ConversationHandler.END
+            return MOVIE_SELECTION
 
         return MOVIE_SELECTION
 
     except ValueError:
-        query.message.edit_text("Invalid input. Select a movie number.")
+        query.message.edit_text("Invalid input. Select a valid option.")
         return MOVIE_SELECTION
 
 def update_domain(update: Update, context: CallbackContext) -> int:
     user_id = update.effective_user.id
     if user_id not in ALLOWED_IDS:
-        update.message.reply_text("Invalid user. Contact admin.")
+        update.message.reply_text("Unauthorized access. Contact admin.")
         return ConversationHandler.END
 
-    if user_id in ACTIVE_SESSIONS:
-        del ACTIVE_SESSIONS[user_id]  # Clear existing session to avoid conflicts
-
+    clear_session(user_id, context)
     ACTIVE_SESSIONS[user_id] = {"start_time": datetime.now()}
     keyboard = [
         [InlineKeyboardButton("Cinevood", callback_data="cinevood")],
         [InlineKeyboardButton("HDHub4u", callback_data="hdhub4u")],
-        [InlineKeyboardButton("HDMovie2u", callback_data="movie2")],
+        [InlineKeyboardButton("HDMovie2", callback_data="hdmovie2")],
         [InlineKeyboardButton("Cancel", callback_data="cancel")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -267,8 +260,8 @@ def domain_selection(update: Update, context: CallbackContext) -> int:
         return ConversationHandler.END
 
     if query.data == "cancel":
-        del ACTIVE_SESSIONS[user_id]
-        query.message.edit_text("OK")
+        clear_session(user_id, context)
+        query.message.edit_text("Operation cancelled.")
         return ConversationHandler.END
 
     context.user_data["site_key"] = query.data
@@ -289,15 +282,16 @@ def domain_input(update: Update, context: CallbackContext) -> int:
     else:
         update.message.reply_text(f"Failed to update domain for {site_key}. Try again.")
 
-    del ACTIVE_SESSIONS[user_id]
+    clear_session(user_id, context)
     return ConversationHandler.END
 
 def status(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if user_id not in ALLOWED_IDS:
-        update.message.reply_text("Invalid user. Contact admin.")
+        update.message.reply_text("Unauthorized access. Contact admin.")
         return
 
+    clear_session(user_id, context)
     scraper = cloudscraper.create_scraper()
     status_text = "Current Site Status:\n\n"
     for site_key, domain in SITE_CONFIG.items():
@@ -314,17 +308,17 @@ def status(update: Update, context: CallbackContext):
 
 def cancel(update: Update, context: CallbackContext) -> int:
     user_id = update.effective_user.id
-    if user_id in ACTIVE_SESSIONS:
-        del ACTIVE_SESSIONS[user_id]
-    update.message.reply_text("OK")
+    clear_session(user_id, context)
+    update.message.reply_text("Operation cancelled.")
     return ConversationHandler.END
 
 def cmd(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if user_id not in ALLOWED_IDS:
-        update.message.reply_text("Invalid user. Contact admin.")
+        update.message.reply_text("Unauthorized access. Contact admin.")
         return
 
+    clear_session(user_id, context)
     commands = [
         "/start_movie - Start a new movie search",
         "/latest_movies - View latest movies",
@@ -339,8 +333,8 @@ def timeout_check(context: CallbackContext):
     current_time = datetime.now()
     for user_id, session in list(ACTIVE_SESSIONS.items()):
         if (current_time - session["start_time"]).total_seconds() > 1800:  # 30 minutes
-            del ACTIVE_SESSIONS[user_id]
-            context.bot.send_message(user_id, "Session timed out. Use /start_movie to retry.")
+            clear_session(user_id, context)
+            context.bot.send_message(user_id, "Session timed out. Use /start_movie to begin again.")
 
 def main():
     updater = Updater(os.environ["TELEGRAM_BOT_TOKEN"], use_context=True)

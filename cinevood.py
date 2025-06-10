@@ -63,6 +63,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
 
 def get_download_links(movie_url):
     scraper = cloudscraper.create_scraper()
+    download_links = []
     
     try:
         logger.debug(f"Fetching movie page: {movie_url}")
@@ -71,21 +72,20 @@ def get_download_links(movie_url):
         logger.debug(f"Status code: {response.status_code}")
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        download_links = []
 
         # Try primary selector: div.download-btns
         download_sections = soup.select('div.download-btns')
         if download_sections:
             logger.debug("Found download sections with 'div.download-btns' selector.")
-            for section in download_sections:
+            for section in soup.find_all('div', class_='download-btns'):
                 description_tag = section.find('h6')
-                link_tags = section.select('div.cat-btn-div2 a[href]')
+                link_tags = section.find_all('a', href=True)
                 if description_tag and link_tags:
                     description = description_tag.text.strip()
-                    if any(exclude in description.lower() for exclude in ['watch online', 'trailer']):
+                    if any(exclude in description.lower() for exclude in ['download', 'trailer']):
                         continue
                     for link_tag in link_tags:
-                        link_text = link_tag.find('button').text.strip()
+                        link_text = link_tag.text.strip()
                         link_url = link_tag['href']
                         download_links.append(f"{description} [{link_text}]: {link_url}")
 
@@ -95,58 +95,59 @@ def get_download_links(movie_url):
             center_tags = soup.find_all('center')
             for center_tag in center_tags:
                 h6_tags = center_tag.find_all('h6')
-                if h6_tags:
-                    for h6 in h6_tags:
-                        description = h6.text.strip()
-                        if any(exclude in description.lower() for exclude in ['watch online', 'trailer']):
-                            continue
-                        current = h6
-                        while current:
-                            current = current.next_sibling
-                            if current and hasattr(current, 'name') and current.name == 'a' and any(cls in current.get('class', []) for cls in ['maxbutton-8', 'maxbutton-9']):
-                                link_text = current.find('span', class_='mb-text').text.strip() if current.find('span', class_='mb-text') else 'Download'
-                                link_url = current['href']
-                                download_links.append(f"{description} [{link_text}]: {link_url}")
-                            elif current and hasattr(current, 'name') and current.name == 'p':
-                                link_tags = current.find_all('a', class_=['maxbutton-8', 'maxbutton-9'])
-                                for link_tag in link_tags:
-                                    link_text = link_tag.find('span', class_='mb-text').text.strip() if link_tag.find('span', class_='mb-text') else 'Download'
-                                    link_url = link_tag['href']
+                for h6_tag in h6_tags:
+                    description = h6_tag.text.strip()
+                    if any(exclude in description.lower() for exclude in ['download', 'trailer']):
+                        continue
+                    current = h6_tag.next_sibling
+                    while current:
+                        if current and hasattr(current, 'name') and current.name == 'a' and any(cls in current.get('class', []) for cls in ['maxbutton-8', 'maxbutton-9']):
+                            link_text = current.find('span', class_='mb-text').text.strip() if current.find('span', class_='mb-text') else 'Download'
+                            link_url = current['href']
+                            download_links.append(f"{description} [{link_text}]: {link_url}")
+                        elif current and hasattr(current, 'name') and current.name == 'p':
+                            link_tags = current.find_all('a', class_=['maxbutton-8', 'maxbutton-9'])
+                            for tag in link_tags:
+                                link_text = tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download'
+                                link_url = tag['href']
+                                if 'Download' not in description.lower():
                                     download_links.append(f"{description} [{link_text}]: {link_url}")
-                            if current and hasattr(current, 'name') and current.name == 'h6':
-                                break
+                        elif current and hasattr(current, 'name') and current.name == 'h6':
+                            break
+                        current = current.next_sibling
 
-        # Fallback: search for h6 tags globally
+        # Fallbacks: search for h6 tags globally
         if not download_links:
-            logger.debug("Trying fallback: searching for h6 tags")
+            logger.debug("Trying fallback: searching for downloading links for h6")
             h6_tags = soup.find_all('h6')
-            for h6 in h6_tags:
-                description = h6.text.strip()
+            for h6_tag in h6_tags:
+                description = h6_tag.text.strip()
                 if any(exclude in description.lower() for exclude in ['watch online', 'trailer']):
                     continue
-                current = h6
+                current = h6_tag.next_sibling
                 while current:
-                    current = current.next_sibling
                     if current and hasattr(current, 'name') and current.name == 'a' and any(cls in current.get('class', []) for cls in ['maxbutton-8', 'maxbutton-9']):
                         link_text = current.find('span', class_='mb-text').text.strip() if current.find('span', class_='mb-text') else 'Download'
                         link_url = current['href']
                         download_links.append(f"{description} [{link_text}]: {link_url}")
                     elif current and hasattr(current, 'name') and current.name == 'p':
                         link_tags = current.find_all('a', class_=['maxbutton-8', 'maxbutton-9'])
-                        for link_tag in link_tags:
-                            link_text = link_tag.find('span', class_='mb-text').text.strip() if link_tag.find('span', class_='mb-text') else 'Download'
-                            link_url = link_tag['href']
-                            download_links.append(f"{description} [{link_text}]: {link_url}")
-                    if current and hasattr(current, 'name') and current.name == 'h6':
+                        for tag in link_tags:
+                            link_text = tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download'
+                            link_url = tag['href']
+                            if 'Download' not in description.lower():
+                                download_links.append(f"{description} [{link_text}]: {link_url}")
+                    elif current and hasattr(current, 'name') and current.name == 'h6':
                         break
+                    current = current.next_sibling
 
         if not download_links:
             logger.warning("No download links found.")
             with open("debug_movie_page.html", "w", encoding="utf-8") as f:
                 f.write(response.text)
 
-        return download_links
-
     except Exception as e:
         logger.error(f"Error fetching page: {e}")
         return []
+
+    return download_links
