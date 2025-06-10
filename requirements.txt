@@ -7,3 +7,7 @@ flask==2.3.3
 gunicorn==21.2.0
 Flask==2.3.3
 validators==0.20.0
+python-telegram-bot==20.7
+cloudscraper==1.2.71
+beautifulsoup4==4.12.2
+requests==2
