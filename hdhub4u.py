@@ -86,10 +86,9 @@ def get_download_links(movie_url):
         download_links = []
         for idx, tag in enumerate(soup.select('h3 a[href], h4 a[href]'), 1):
             link_text = tag.find('em').text.strip() if tag.find('em') else tag.text.strip()
-            link_text = link_text.replace('*', r'\*').replace('_', r'\_').replace('(', r'\(').replace(')', r'\)')
             link_url = tag['href']
-            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['trailer', 'watch online', 'player']):
-                download_links.append(f"{idx}\.) **{link_text}** : {link_url}\n\n")
+            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['trailer']):
+                download_links.append(f"{idx}) **{link_text}** : {link_url}\n")
 
         if not download_links:
             logger.warning("No download or watch online links found on this page.")

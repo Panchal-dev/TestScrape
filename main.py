@@ -128,7 +128,7 @@ def fetch_movies(update: Update, context: CallbackContext, page: int):
         context.user_data["links"] = links
         context.user_data["page"] = page
 
-        start_idx = (page - 1) * 10
+        start_idx = (page - 1) * 10  # Changed to 10 for 10-button gap
         end_idx = start_idx + 10
         page_titles = titles[start_idx:end_idx]
 
@@ -210,7 +210,7 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
                 download_links = hdmovie2_links(movie_url)
 
             if download_links:
-                text = "Download Links:\n\n" + "".join(download_links)
+                text = "Download Links:\n\n" + "\n".join(download_links)
             else:
                 text = "No download links found."
 
@@ -219,7 +219,7 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
                 [InlineKeyboardButton("Back to Sites", callback_data="back_to_sites")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            query.message.edit_text(text, reply_markup=reply_markup, parse_mode="MarkdownV2")
+            query.message.edit_text(text, reply_markup=reply_markup)
 
         except Exception as e:
             logger.error(f"Error fetching download links for {movie_url}: {e}")
@@ -332,7 +332,7 @@ def cmd(update: Update, context: CallbackContext):
 def timeout_check(context: CallbackContext):
     current_time = datetime.now()
     for user_id, session in list(ACTIVE_SESSIONS.items()):
-        if (current_time - session["start_time"]).total_seconds() > 1800:
+        if (current_time - session["start_time"]).total_seconds() > 1800:  # 30 minutes
             clear_session(user_id, context)
             context.bot.send_message(user_id, "Session timed out. Use /start_movie to begin again.")
 
