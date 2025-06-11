@@ -87,7 +87,7 @@ def get_download_links(movie_url):
                     count += 1
                     link_text = link_tag.text.strip()
                     link_url = link_tag['href']
-                    download_links.append(f"{count}) **{description} [{link_text}]** : {link_url}\n")
+                    download_links.append(f"{count}\.) **{description} [{link_text}]** : {link_url}\n\n")
 
         # Try new structure: center > h6 + p > a.maxbutton-*
         if not download_links:
@@ -106,7 +106,7 @@ def get_download_links(movie_url):
                                 count += 1
                                 link_text = tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download'
                                 link_url = tag['href']
-                                download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
+                                download_links.append(f"{count}\.) **{description} [{link_text}]** : {link_url}\n\n")
                         elif current and hasattr(current, 'name') and current.name == 'h6':
                             break
                         current = current.next_sibling
@@ -126,12 +126,12 @@ def get_download_links(movie_url):
                             count += 1
                             link_text = tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download'
                             link_url = tag['href']
-                            download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
+                            download_links.append(f"{count}\.) **{description} [{link_text}]** : {link_url}\n\n")
                     elif current and hasattr(current, 'name') and current.name == 'a' and re.search(r'maxbutton-\d+', ' '.join(current.get('class', []))):
                         count += 1
                         link_text = current.find('span', class_='mb-text').text.strip() if current.find('span', class_='mb-text') else 'Download'
                         link_url = current['href']
-                        download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
+                        download_links.append(f"{count}\.) **{description} [{link_text}]** : {link_url}\n\n")
                     elif current and hasattr(current, 'name') and current.name == 'h6':
                         break
                     current = current.next_sibling
@@ -152,7 +152,7 @@ def get_download_links(movie_url):
                 count += 1
                 link_text = link_tag.find('span', class_='mb-text').text.strip() if link_tag.find('span', class_='mb-text') else 'Download'
                 link_url = link_tag['href']
-                download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
+                download_links.append(f"{count}\.) **{description} [{link_text}]** : {link_url}\n\n")
 
         if not download_links:
             logger.warning("No download links found.")
@@ -163,5 +163,5 @@ def get_download_links(movie_url):
         return download_links
 
     except Exception as e:
-        logger.error(f"Error fetching page: {e}")
+        logger.error(f"Error in get_download_links for {movie_url}: {str(e)}")
         return []

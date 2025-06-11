@@ -44,6 +44,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
 
         except Exception as e:
             logger.error(f"Error fetching featured movies: {e}")
+            return [], []
 
         for page in range(1, max_pages + 1):
             url = f"https://{SITE_CONFIG['hdmovie2']}/movies/page/{page}/" if page > 1 else f"https://{SITE_CONFIG['hdmovie2']}/movies/"
@@ -158,7 +159,7 @@ def get_download_links(movie_url):
             link_text = tag.text.strip()
             link_url = tag['href']
             if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['watch online', 'trailer']):
-                download_links.append(f"{idx}) **{link_text}** : {link_url}\n")
+                download_links.append(f"{idx}\.) **{link_text}** : {link_url}\n\n")
 
         if not download_links:
             logger.warning("No download links found on this page.")
@@ -168,5 +169,5 @@ def get_download_links(movie_url):
         return download_links
 
     except Exception as e:
-        logger.error(f"Error fetching page: {e}")
+        logger.error(f"Error in get_download_links for {movie_url}: {str(e)}")
         return []
