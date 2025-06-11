@@ -74,13 +74,11 @@ def get_download_links(movie_url):
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
+        # Try primary selector: div.download-btns
         count = 0
-        download_links = []
-        
         for section in soup.find_all('div', class_='download-btns'):
             description_tag = section.find('h6')
             link_tags = section.find_all('a', href=True)
-        
             if description_tag and link_tags:
                 description = description_tag.text.strip()
                 if any(exclude in description.lower() for exclude in ['download', 'trailer']):
@@ -89,9 +87,7 @@ def get_download_links(movie_url):
                     count += 1
                     link_text = link_tag.text.strip()
                     link_url = link_tag['href']
-                    full_line = f"{count}) {description} [{link_text}]: {link_url}"
-                    download_links.append(f"**{full_line}**\n")
-
+                    download_links.append(f"{count}) **{description} [{link_text}]** : {link_url}\n")
 
         # Try new structure: center > h6 + p > a.maxbutton-*
         if not download_links:
