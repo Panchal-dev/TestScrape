@@ -18,6 +18,7 @@ from cinevood import get_movie_titles_and_links as cinevood_titles, get_download
 from hdhub4u import get_movie_titles_and_links as hdhub4u_titles, get_download_links as hdhub4u_links
 from hdmovie2 import get_movie_titles_and_links as hdmovie2_titles, get_download_links as hdmovie2_links
 from config import SITE_CONFIG, ALLOWED_IDS, update_site_domain, logger
+import re
 
 # States for conversation
 MOVIE_NAME, SITE_SELECTION, MOVIE_SELECTION, DOMAIN_UPDATE, DOMAIN_INPUT = range(5)
@@ -210,7 +211,24 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
                 download_links = hdmovie2_links(movie_url)
 
             if download_links:
-                text = "Download Links:\n\n" + "\n".join(download_links)
+                # Format links in the desired style
+                formatted_links = []
+                for index, link in enumerate(download_links, 1):
+                    # Split link into title and URL (assuming URL is at the end after ': ')
+                    match = re.match(r"(.+?)\s*:\s*(https?://\S+)", link)
+                    if match:
+                        title, url = match.groups()
+                        title = title.strip()
+                        # Escape special characters for Telegram MarkdownV2
+                        title = re.sub(r'([*_[\]()~`>#+\-=|{}.!])', r'\\\1', title)
+                        url = re.sub(r'([*_[\]()~`>#+\-=|{}.!])', r'\\\1', url)
+                        formatted_links.append(f"**{index}.** **{title}**: {url}")
+                    else:
+                        # Fallback: treat the whole link as the title if no URL is found
+                        title = re.sub(r'([*_[\]()~`>#+\-=|{}.!])', r'\\\1', link.strip())
+                        formatted_links.append(f"**{index}.** **{title}**: No URL")
+
+                text = "Download Links:\n\n" + "\n\n".join(formatted_links)
             else:
                 text = "No download links found."
 
@@ -219,7 +237,7 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
                 [InlineKeyboardButton("Back to Sites", callback_data="back_to_sites")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            query.message.edit_text(text, reply_markup=reply_markup)
+            query.message.edit_text(text, parse_mode="MarkdownV2", reply_markup=reply_markup, disable_web_page_preview=True)
 
         except Exception as e:
             logger.error(f"Error fetching download links for {movie_url}: {e}")
