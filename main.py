@@ -144,7 +144,7 @@ def fetch_movies(update: Update, context: CallbackContext, page: int):
 
         text = f"{'Search' if mode == 'search' else 'Latest'} Movies (Page {page}):\n\n" + "\n".join(page_titles)
         query = update.callback_query
-        query.message.edit_text(text, reply_markup=reply_markup)
+        query.message.edit_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
     except Exception as e:
         logger.error(f"Error fetching movies: {e}")
@@ -184,7 +184,7 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         text = f"Select a site to search for '{context.user_data['movie_name']}'" if mode == "search" else "Select a site for latest movies:"
-        query.message.edit_text(text, reply_markup=reply_markup)
+        query.message.edit_text(text, reply_markup=reply_markup, parse_mode='Markdown')
         return SITE_SELECTION
     elif query.data == "back_to_list":
         page = context.user_data.get("page", 1)
@@ -219,7 +219,7 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
                 [InlineKeyboardButton("Back to Sites", callback_data="back_to_sites")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            query.message.edit_text(text, reply_markup=reply_markup)
+            query.message.edit_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
         except Exception as e:
             logger.error(f"Error fetching download links for {movie_url}: {e}")

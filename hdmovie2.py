@@ -158,7 +158,7 @@ def get_download_links(movie_url):
             link_text = tag.text.strip()
             link_url = tag['href']
             if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['watch online', 'trailer']):
-                download_links.append(f"{idx}.) **{link_text}** : {link_url}\n")
+                download_links.append(f"{idx}) **{link_text}** : {link_url}\n")
 
         if not download_links:
             logger.warning("No download links found on this page.")
