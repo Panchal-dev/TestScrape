@@ -154,11 +154,11 @@ def get_download_links(movie_url):
 
         soup = BeautifulSoup(response.text, 'html.parser')
         download_links = []
-        for tag in soup.select('div.download-links-section p a[href]'):
+        for idx, tag in enumerate(soup.select('div.download-links-section p a[href]'), 1):
             link_text = tag.text.strip()
             link_url = tag['href']
             if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['watch online', 'trailer']):
-                download_links.append(f"{link_text}: {link_url}")
+                download_links.append(f"{idx}.) **{link_text}** : {link_url}\n")
 
         if not download_links:
             logger.warning("No download links found on this page.")
