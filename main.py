@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 from datetime import datetime
@@ -18,7 +19,6 @@ from cinevood import get_movie_titles_and_links as cinevood_titles, get_download
 from hdhub4u import get_movie_titles_and_links as hdhub4u_titles, get_download_links as hdhub4u_links
 from hdmovie2 import get_movie_titles_and_links as hdmovie2_titles, get_download_links as hdmovie2_links
 from config import SITE_CONFIG, ALLOWED_IDS, update_site_domain, logger
-import re
 
 # States for conversation
 MOVIE_NAME, SITE_SELECTION, MOVIE_SELECTION, DOMAIN_UPDATE, DOMAIN_INPUT = range(5)
@@ -129,7 +129,7 @@ def fetch_movies(update: Update, context: CallbackContext, page: int):
         context.user_data["links"] = links
         context.user_data["page"] = page
 
-        start_idx = (page - 1) * 10  # Changed to 10 for 10-button gap
+        start_idx = (page - 1) * 10
         end_idx = start_idx + 10
         page_titles = titles[start_idx:end_idx]
 
@@ -202,6 +202,17 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
         site = context.user_data["site"]
 
         try:
+            # Check domain validity before fetching links
+            domain = SITE_CONFIG.get(site)
+            if not domain:
+                raise ValueError(f"No domain configured for {site}")
+            test_url = f"https://{domain}/"
+            logger.debug(f"Testing domain for {site}: {test_url}")
+            scraper = cloudscraper.create_scraper()
+            response = scraper.get(test_url, timeout=5)
+            if response.status_code != 200:
+                raise requests.HTTPError(f"Domain {domain} returned status {response.status_code}")
+
             logger.debug(f"Fetching download links for {movie_url} from {site}")
             if site == "cinevood":
                 download_links = cinevood_links(movie_url)
@@ -222,13 +233,21 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
                         # Escape special characters for Telegram MarkdownV2
                         title = re.sub(r'([*_[\]()~`>#+\-=|{}.!])', r'\\\1', title)
                         url = re.sub(r'([*_[\]()~`>#+\-=|{}.!])', r'\\\1', url)
+                        # Filter out non-download links
+                        if any(exclude in title.lower() for exclude in ['watch online', 'player']):
+                            continue
                         formatted_links.append(f"**{index}.** **{title}**: {url}")
                     else:
                         # Fallback: treat the whole link as the title if no URL is found
                         title = re.sub(r'([*_[\]()~`>#+\-=|{}.!])', r'\\\1', link.strip())
+                        if any(exclude in title.lower() for exclude in ['watch online', 'player']):
+                            continue
                         formatted_links.append(f"**{index}.** **{title}**: No URL")
 
-                text = "Download Links:\n\n" + "\n\n".join(formatted_links)
+                if formatted_links:
+                    text = "Download Links:\n\n" + "\n\n".join(formatted_links)
+                else:
+                    text = "No valid download links found (only streaming links available)."
             else:
                 text = "No download links found."
 
@@ -239,9 +258,25 @@ def movie_selection(update: Update, context: CallbackContext) -> int:
             reply_markup = InlineKeyboardMarkup(keyboard)
             query.message.edit_text(text, parse_mode="MarkdownV2", reply_markup=reply_markup, disable_web_page_preview=True)
 
+        except requests.Timeout:
+            logger.error(f"Timeout fetching download links for {movie_url} from {site}")
+            query.message.edit_text("Request timed out. Try again later or check /status.")
+            return MOVIE_SELECTION
+        except requests.HTTPError as e:
+            logger.error(f"HTTP error fetching download links for {movie_url} from {site}: {e}")
+            query.message.edit_text(f"Domain error for {site}. Use /update_domain to set a new domain.")
+            return MOVIE_SELECTION
+        except requests.ConnectionError:
+            logger.error(f"Connection error fetching download links for {movie_url} from {site}")
+            query.message.edit_text("Connection error. Check your network or try later.")
+            return MOVIE_SELECTION
+        except ValueError as e:
+            logger.error(f"Configuration error for {movie_url} from {site}: {e}")
+            query.message.edit_text(f"Invalid configuration for {site}. Contact admin.")
+            return MOVIE_SELECTION
         except Exception as e:
-            logger.error(f"Error fetching download links for {movie_url}: {e}")
-            query.message.edit_text("Error fetching download links. Try again later.")
+            logger.error(f"Unexpected error fetching download links for {movie_url} from {site}: {e}")
+            query.message.edit_text("Unexpected error fetching links. Try again or contact admin.")
             return MOVIE_SELECTION
 
         return MOVIE_SELECTION
@@ -311,7 +346,7 @@ def status(update: Update, context: CallbackContext):
 
     clear_session(user_id, context)
     scraper = cloudscraper.create_scraper()
-    status_text = "Current Site Status:\n\n"
+    status_text = "!Current Site Status:\n\n"
     for site_key, domain in SITE_CONFIG.items():
         url = f"https://{domain}/"
         try:
