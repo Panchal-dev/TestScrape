@@ -5,13 +5,6 @@ import os
 import re
 from config import SITE_CONFIG, logger
 
-def escape_markdown_v2(text):
-    """Escape special characters for Telegram MarkdownV2."""
-    special_chars = r'_*[]()~`>#+-=|{}.!'
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
-
 def get_movie_titles_and_links(movie_name=None, max_pages=5):
     all_titles = []
     movie_links = []
@@ -87,14 +80,14 @@ def get_download_links(movie_url):
             description_tag = section.find('h6')
             link_tags = section.find_all('a', href=True)
             if description_tag and link_tags:
-                description = escape_markdown_v2(description_tag.text.strip())
+                description = description_tag.text.strip()
                 if any(exclude in description.lower() for exclude in ['download', 'trailer']):
                     continue
                 for link_tag in link_tags:
                     count += 1
-                    link_text = escape_markdown_v2(link_tag.text.strip())
+                    link_text = link_tag.text.strip()
                     link_url = link_tag['href']
-                    download_links.append(f"{count}\.) **{description} \\[{link_text}\\]** : {link_url}\n\n")
+                    download_links.append(f"{count}) **{description} [{link_text}]** : {link_url}\n")
 
         # Try new structure: center > h6 + p > a.maxbutton-*
         if not download_links:
@@ -102,7 +95,7 @@ def get_download_links(movie_url):
             for center_tag in center_tags:
                 h6_tags = center_tag.find_all('h6')
                 for h6_tag in h6_tags:
-                    description = escape_markdown_v2(h6_tag.text.strip())
+                    description = h6_tag.text.strip()
                     if any(exclude in description.lower() for exclude in ['download', 'trailer', 'watch online']):
                         continue
                     current = h6_tag.next_sibling
@@ -111,9 +104,9 @@ def get_download_links(movie_url):
                             link_tags = current.find_all('a', class_=re.compile(r'maxbutton-\d+'))
                             for tag in link_tags:
                                 count += 1
-                                link_text = escape_markdown_v2(tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download')
+                                link_text = tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download'
                                 link_url = tag['href']
-                                download_links.append(f"{count}\.) **{description} \\[{link_text}\\]** : {link_url}\n\n")
+                                download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
                         elif current and hasattr(current, 'name') and current.name == 'h6':
                             break
                         current = current.next_sibling
@@ -122,7 +115,7 @@ def get_download_links(movie_url):
         if not download_links:
             h6_tags = soup.find_all('h6')
             for h6_tag in h6_tags:
-                description = escape_markdown_v2(h6_tag.text.strip())
+                description = h6_tag.text.strip()
                 if any(exclude in description.lower() for exclude in ['download', 'trailer', 'watch online']):
                     continue
                 current = h6_tag.next_sibling
@@ -131,14 +124,14 @@ def get_download_links(movie_url):
                         link_tags = current.find_all('a', class_=re.compile(r'maxbutton-\d+'))
                         for tag in link_tags:
                             count += 1
-                            link_text = escape_markdown_v2(tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download')
+                            link_text = tag.find('span', class_='mb-text').text.strip() if tag.find('span', class_='mb-text') else 'Download'
                             link_url = tag['href']
-                            download_links.append(f"{count}\.) **{description} \\[{link_text}\\]** : {link_url}\n\n")
+                            download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
                     elif current and hasattr(current, 'name') and current.name == 'a' and re.search(r'maxbutton-\d+', ' '.join(current.get('class', []))):
                         count += 1
-                        link_text = escape_markdown_v2(current.find('span', class_='mb-text').text.strip() if current.find('span', class_='mb-text') else 'Download')
+                        link_text = current.find('span', class_='mb-text').text.strip() if current.find('span', class_='mb-text') else 'Download'
                         link_url = current['href']
-                        download_links.append(f"{count}\.) **{description} \\[{link_text}\\]** : {link_url}\n\n")
+                        download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
                     elif current and hasattr(current, 'name') and current.name == 'h6':
                         break
                     current = current.next_sibling
@@ -147,19 +140,19 @@ def get_download_links(movie_url):
         if not download_links:
             link_tags = soup.find_all('a', class_=re.compile(r'maxbutton-\d+'))
             for link_tag in link_tags:
-                description = escape_markdown_v2("Unknown Quality")
+                description = "Unknown Quality"
                 current = link_tag
                 while current:
                     current = current.find_previous_sibling()
                     if current and hasattr(current, 'name') and current.name == 'h6':
-                        description = escape_markdown_v2(current.text.strip())
+                        description = current.text.strip()
                         break
                 if any(exclude in description.lower() for exclude in ['download', 'trailer', 'watch online']):
                     continue
                 count += 1
-                link_text = escape_markdown_v2(link_tag.find('span', class_='mb-text').text.strip() if link_tag.find('span', class_='mb-text') else 'Download')
+                link_text = link_tag.find('span', class_='mb-text').text.strip() if link_tag.find('span', class_='mb-text') else 'Download'
                 link_url = link_tag['href']
-                download_links.append(f"{count}\.) **{description} \\[{link_text}\\]** : {link_url}\n\n")
+                download_links.append(f"{count}.) **{description} [{link_text}]** : {link_url}\n")
 
         if not download_links:
             logger.warning("No download links found.")
@@ -170,5 +163,5 @@ def get_download_links(movie_url):
         return download_links
 
     except Exception as e:
-        logger.error(f"Error in get_download_links for {movie_url}: {str(e)}")
+        logger.error(f"Error fetching page: {e}")
         return []

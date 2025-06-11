@@ -2,21 +2,11 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import os
-from config import SITE_CONFIG, logging
+from config import SITE_CONFIG, logger
 
-logger = logging.getLogger(__name__)
-
-def escape_markdown_v2(text):
-    """Escape special characters for Telegram MarkdownV2."""
-    special_chars = r'_*[]()~`>#+-=|{}.!'
-    for char in special_chars:
-        if char:
-            text = text.replace(char, f'\\{char}')
-    return text
-
-def get_download_titles_and_links(movie_name=None, site=None, max_pages=5):
-    query = f"{movie_name.replace(' ', '+').lower()}" if movie_name else ""
-    base_url = f"https://{SITE_CONFIG['hdhub4u']}/?s={query}" if movie_name else f"https://{SITE_CONFIG['hdhub4u']}/"
+def get_movie_titles_and_links(movie_name=None, max_pages=5):
+    search_query = f"{movie_name.replace(' ', '+').lower()}" if movie_name else ""
+    base_url = f"https://{SITE_CONFIG['hdhub4u']}/?s={search_query}" if movie_name else f"https://{SITE_CONFIG['hdhub4u']}/"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -29,9 +19,9 @@ def get_download_titles_and_links(movie_name=None, site=None, max_pages=5):
     all_titles = []
     movie_links = []
     session = requests.Session()
-    
+
     while page <= max_pages:
-        url = base_url if page == 1 else f"https://{SITE_CONFIG['hdhub4u']}/page/{page}/{'?s=' + query if movie_name else ''}"
+        url = base_url if page == 1 else f"https://{SITE_CONFIG['hdhub4u']}/page/{page}/{'?s=' + search_query if movie_name else ''}"
         logger.debug(f"Fetching page {page}: {url}")
 
         try:
@@ -96,10 +86,9 @@ def get_download_links(movie_url):
         download_links = []
         for idx, tag in enumerate(soup.select('h3 a[href], h4 a[href]'), 1):
             link_text = tag.find('em').text.strip() if tag.find('em') else tag.text.strip()
-            link_text = escape_markdown_v2(link_text)
             link_url = tag['href']
-            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['trailer', 'watch online', 'player']):
-                download_links.append(f"{idx}.) **{link_text}** : {link_url}\n\n")
+            if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['trailer']):
+                download_links.append(f"{idx}) **{link_text}** : {link_url}\n")
 
         if not download_links:
             logger.warning("No download or watch online links found on this page.")
@@ -109,5 +98,5 @@ def get_download_links(movie_url):
         return download_links
 
     except requests.RequestException as e:
-        logger.error(f"Error in get_download_links for {movie_url}: {str(e)}")
+        logger.error(f"Error fetching movie page: {e}")
         return []

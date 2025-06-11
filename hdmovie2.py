@@ -4,13 +4,6 @@ import time
 import os
 from config import SITE_CONFIG, logger
 
-def escape_markdown_v2(text):
-    """Escape special characters for Telegram MarkdownV2."""
-    special_chars = r'_*[]()~`>#+-=|{}.!'
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
-
 def get_movie_titles_and_links(movie_name=None, max_pages=5):
     all_titles = []
     movie_links = []
@@ -51,7 +44,6 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
 
         except Exception as e:
             logger.error(f"Error fetching featured movies: {e}")
-            return [], []
 
         for page in range(1, max_pages + 1):
             url = f"https://{SITE_CONFIG['hdmovie2']}/movies/page/{page}/" if page > 1 else f"https://{SITE_CONFIG['hdmovie2']}/movies/"
@@ -108,10 +100,8 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
 
                 if not movie_elements:
                     logger.warning("No movie elements found on this page.")
-                    with open(f"No_next_page_found_{page}.html", "w", encoding="utf-8") as f:
+                    with open(f"debug_page_{page}.html", "w", encoding="utf-8") as f:
                         f.write(response.text)
-                    if not ("page"):
-                        logger.debug("No next page found.")
                     break
 
                 for element in movie_elements:
@@ -119,7 +109,7 @@ def get_movie_titles_and_links(movie_name=None, max_pages=5):
                     if title_tag:
                         title = title_tag.text.strip()
                         link = title_tag['href']
-                        if title and not any(exclude in title.lower() for exclude in ['©', '']):
+                        if title and not any(exclude in title.lower() for exclude in ['©', 'all rights reserved']):
                             movie_count += 1
                             all_titles.append(f"{movie_count}. {title}")
                             movie_links.append(link)
@@ -143,7 +133,7 @@ def get_download_links(movie_url):
     scraper = cloudscraper.create_scraper()
     
     try:
-        logger.debug(f"Attempting movie page: {movie_url}")
+        logger.debug(f"Fetching movie page: {movie_url}")
         response = scraper.get(movie_url, timeout=10)
         response.raise_for_status()
         logger.debug(f"Status code: {response.status_code}")
@@ -157,19 +147,18 @@ def get_download_links(movie_url):
             return []
 
         download_page_url = download_link_tags[0]['href']
-        logger.debug(f"Attempting to fetch download page: {download_page_url}")
+        logger.debug(f"Fetching download page: {download_page_url}")
         response = scraper.get(download_page_url, timeout=10)
         response.raise_for_status()
+        logger.debug(f"Status code: {response.status_code}")
 
-        logger.debug(f"Successfully fetched page with status code: {response.status_code}")
         soup = BeautifulSoup(response.text, 'html.parser')
         download_links = []
         for idx, tag in enumerate(soup.select('div.download-links-section p a[href]'), 1):
             link_text = tag.text.strip()
-            link_text = escape_markdown_v2(link_text)
             link_url = tag['href']
             if link_text and link_url and not any(exclude in link_text.lower() for exclude in ['watch online', 'trailer']):
-                download_links.append(f"#{idx}.) **{link_text}** : {link_url}\n\n")
+                download_links.append(f"{idx}) **{link_text}** : {link_url}\n")
 
         if not download_links:
             logger.warning("No download links found on this page.")
@@ -179,5 +168,5 @@ def get_download_links(movie_url):
         return download_links
 
     except Exception as e:
-        logger.error(f"Error executing get_download_links for {movie_url}: {str(e)}")
+        logger.error(f"Error fetching page: {e}")
         return []
